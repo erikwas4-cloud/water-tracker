@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Hydration">
+<meta name="theme-color" content="#0ea5e9">
+<title>Hydration Tracker</title>
+<style>
+  :root {
+    --bg: #f0f9ff;
+    --card: #ffffff;
+    --border: #e0f2fe;
+    --text: #0c4a6e;
+    --text-muted: #64748b;
+    --accent: #0ea5e9;
+    --accent-dark: #0284c7;
+    --accent-light: #e0f2fe;
+    --success: #10b981;
+    --radius: 16px;
+    --shadow: 0 2px 16px rgba(14,165,233,0.10);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 0 0 80px;
+  }
+
+  /* Toast */
+  #toast {
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-80px);
+    background: var(--success); color: #fff; padding: 12px 24px; border-radius: 100px;
+    font-size: 15px; font-weight: 500; z-index: 999; transition: transform 0.35s cubic-bezier(.34,1.56,.64,1);
+    white-space: nowrap; pointer-events: none;
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* Header */
+  header {
+    background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+    color: #fff; padding: 48px 24px 32px; text-align: center;
+  }
+  header h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.3px; }
+  header .date { font-size: 13px; opacity: 0.75; margin-top: 4px; }
+
+  /* Ring */
+  .ring-wrap { display: flex; justify-content: center; padding: 32px 24px 0; }
+  .ring-svg { display: block; }
+  .ring-bg { fill: none; stroke: var(--accent-light); stroke-width: 12; }
+  .ring-fg { fill: none; stroke: var(--accent); stroke-width: 12; stroke-linecap: round;
+    transition: stroke-dashoffset 0.6s cubic-bezier(.4,0,.2,1); }
+  .ring-center { text-anchor: middle; dominant-baseline: middle; }
+  .ring-ml { font-size: 28px; font-weight: 700; fill: var(--text); }
+  .ring-label { font-size: 13px; fill: var(--text-muted); }
+
+  /* Goal text */
+  .goal-text { text-align: center; font-size: 14px; color: var(--text-muted); margin-top: 12px; }
+  .goal-text span { font-weight: 600; color: var(--accent-dark); }
+
+  /* Quick add buttons */
+  .section { padding: 24px 16px 0; }
+  .section-label { font-size: 12px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.8px; color: var(--text-muted); margin-bottom: 12px; }
+  .quick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .quick-btn {
+    background: var(--card); border: 1.5px solid var(--border);
+    border-radius: var(--radius); padding: 14px 6px; text-align: center;
+    cursor: pointer; transition: all 0.15s; box-shadow: var(--shadow);
+  }
+  .quick-btn:active { transform: scale(0.95); background: var(--accent-light); }
+  .quick-btn .ml { font-size: 16px; font-weight: 700; color: var(--accent-dark); }
+  .quick-btn .lbl { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  /* Custom add */
+  .custom-row { display: flex; gap: 10px; margin-top: 10px; }
+  .custom-row input {
+    flex: 1; border: 1.5px solid var(--border); border-radius: var(--radius);
+    padding: 12px 16px; font-size: 15px; background: var(--card); color: var(--text);
+    outline: none;
+  }
+  .custom-row input:focus { border-color: var(--accent); }
+  .custom-row button {
+    background: var(--accent); color: #fff; border: none; border-radius: var(--radius);
+    padding: 12px 20px; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  .custom-row button:active { background: var(--accent-dark); }
+
+  /* NFC section */
+  .nfc-card {
+    margin: 16px; background: var(--card); border: 1.5px solid var(--border);
+    border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow);
+  }
+  .nfc-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+  .nfc-card p { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+  .nfc-url {
+    margin-top: 12px; background: var(--accent-light); border-radius: 10px;
+    padding: 10px 14px; font-size: 12px; font-family: monospace; color: var(--accent-dark);
+    word-break: break-all; cursor: pointer; border: 1px dashed var(--accent);
+  }
+  .nfc-url::before { content: '📋 '; }
+  .nfc-presets { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .nfc-preset {
+    background: var(--accent-light); border: 1px solid var(--accent);
+    color: var(--accent-dark); border-radius: 100px; padding: 5px 14px;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  .nfc-preset.active { background: var(--accent); color: #fff; }
+
+  /* History */
+  .history-list { display: flex; flex-direction: column; gap: 8px; }
+  .history-item {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;
+    box-shadow: var(--shadow);
+  }
+  .history-item .time { font-size: 12px; color: var(--text-muted); }
+  .history-item .amount { font-size: 15px; font-weight: 600; color: var(--accent-dark); }
+  .history-item .src { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .history-item .del {
+    background: none; border: none; font-size: 16px; cursor: pointer;
+    color: #cbd5e1; padding: 4px 8px;
+  }
+  .history-item .del:active { color: #ef4444; }
+  .empty { text-align: center; color: var(--text-muted); font-size: 14px; padding: 32px 0; }
+
+  /* Settings */
+  .settings-card {
+    margin: 0 16px 16px; background: var(--card); border: 1.5px solid var(--border);
+    border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow);
+  }
+  .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .settings-row label { font-size: 14px; color: var(--text); }
+  .settings-row input[type=number] {
+    width: 100px; border: 1.5px solid var(--border); border-radius: 10px;
+    padding: 8px 12px; font-size: 14px; color: var(--text); text-align: center; background: var(--bg);
+  }
+  .settings-row button {
+    background: var(--accent); color: #fff; border: none; border-radius: 10px;
+    padding: 8px 18px; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0c1a26; --card: #162433; --border: #1e3a50;
+      --text: #e0f2fe; --text-muted: #7fb3cc; --accent-light: #0c2d40;
+    }
+    .ring-ml { fill: #e0f2fe; }
+    .ring-label { fill: #7fb3cc; }
+  }
+</style>
+</head>
+<body>
+
+<div id="toast">💧 Water logged!</div>
+
+<header>
+  <h1>💧 Hydration</h1>
+  <div class="date" id="header-date"></div>
+</header>
+
+<div class="ring-wrap">
+  <svg class="ring-svg" width="180" height="180" viewBox="0 0 180 180">
+    <circle class="ring-bg" cx="90" cy="90" r="75"/>
+    <circle class="ring-fg" id="ring-fg" cx="90" cy="90" r="75"
+      stroke-dasharray="471" stroke-dashoffset="471" transform="rotate(-90 90 90)"/>
+    <text class="ring-center ring-ml" id="ring-ml" x="90" y="82">0</text>
+    <text class="ring-center ring-label" x="90" y="105">ml today</text>
+  </svg>
+</div>
+<p class="goal-text">Goal: <span id="goal-display">2000</span> ml</p>
+
+<div class="section">
+  <div class="section-label">Quick add</div>
+  <div class="quick-grid">
+    <div class="quick-btn" onclick="addWater(150, 'Quick')"><div class="ml">150</div><div class="lbl">ml · shot</div></div>
+    <div class="quick-btn" onclick="addWater(250, 'Quick')"><div class="ml">250</div><div class="lbl">ml · glass</div></div>
+    <div class="quick-btn" onclick="addWater(500, 'Quick')"><div class="ml">500</div><div class="lbl">ml · bottle</div></div>
+    <div class="quick-btn" onclick="addWater(750, 'Quick')"><div class="ml">750</div><div class="lbl">ml · large</div></div>
+  </div>
+  <div class="custom-row">
+    <input type="number" id="custom-input" placeholder="Custom ml" min="1" max="2000">
+    <button onclick="addCustom()">Add</button>
+  </div>
+</div>
+
+<!-- NFC Setup -->
+<div style="padding: 24px 0 0;">
+  <div class="nfc-card">
+    <h3>📡 NFC Auto-log Setup</h3>
+    <p>Program your NFC sticker with one of these URLs. When scanned, it opens this page and logs water automatically — no taps needed.</p>
+    <div style="margin-top: 12px; font-size: 13px; color: var(--text-muted);">Choose preset amount:</div>
+    <div class="nfc-presets">
+      <div class="nfc-preset active" onclick="setNfcPreset(250, this)">250 ml</div>
+      <div class="nfc-preset" onclick="setNfcPreset(500, this)">500 ml</div>
+      <div class="nfc-preset" onclick="setNfcPreset(750, this)">750 ml</div>
+    </div>
+    <div class="nfc-url" id="nfc-url-display" onclick="copyNfcUrl()" title="Tap to copy"></div>
+    <div style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">
+      Use <strong>NFC Tools</strong> (iOS/Android) to write this URL to your sticker. Tap to copy.
+    </div>
+  </div>
+</div>
+
+<!-- History -->
+<div class="section" style="padding-bottom: 24px;">
+  <div class="section-label">Today's log</div>
+  <div class="history-list" id="history-list">
+    <div class="empty">No water logged yet today</div>
+  </div>
+</div>
+
+<!-- Settings -->
+<div style="padding-top: 0;">
+  <div class="settings-card">
+    <div class="section-label" style="margin-bottom: 16px;">Settings</div>
+    <div class="settings-row">
+      <label>Daily goal (ml)</label>
+      <input type="number" id="goal-input" value="2000" min="500" max="5000" step="100">
+      <button onclick="saveGoal()">Save</button>
+    </div>
+    <div class="settings-row" style="margin-bottom:0;">
+      <label style="font-size:13px; color:var(--text-muted);">Reset today's data</label>
+      <button onclick="resetToday()" style="background:#ef4444;">Reset</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// EDIT THESE two values after deploying the Cloudflare Worker (see hydration-worker/).
+const API_BASE = 'https://hydration-tracker.erikwas4.workers.dev';
+const API_KEY  = 'EtdS0U62sW4M3PzQvfiqpHOmwTay9KbF';
+
+let state = { date: null, total: 0, entries: [], goal: 2000 };
+let nfcPresetMl = 250;
+
+function localDateStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function fmtTime(iso) {
+  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY, ...(opts.headers || {}) },
+  });
+  if (!res.ok) throw new Error(`API error ${res.status}`);
+  return res.json();
+}
+
+async function loadState() {
+  try {
+    state = await api(`/state?date=${localDateStr()}`);
+  } catch {
+    showToast('⚠️ Could not reach server');
+  }
+  render();
+}
+
+async function addWater(ml, source = 'Manual') {
+  try {
+    state = await api('/log', { method: 'POST', body: JSON.stringify({ ml, source, date: localDateStr() }) });
+    render();
+    showToast(`+${ml} ml logged! 💧`);
+  } catch {
+    showToast('⚠️ Could not reach server');
+  }
+}
+
+async function addCustom() {
+  const v = parseInt(document.getElementById('custom-input').value, 10);
+  if (!v || v < 1 || v > 5000) return;
+  await addWater(v, 'Custom');
+  document.getElementById('custom-input').value = '';
+}
+
+async function deleteEntry(index) {
+  state = await api('/delete', { method: 'POST', body: JSON.stringify({ index }) });
+  render();
+}
+
+async function saveGoal() {
+  const v = parseInt(document.getElementById('goal-input').value, 10);
+  if (v >= 500 && v <= 5000) {
+    state = await api('/goal', { method: 'POST', body: JSON.stringify({ goal: v }) });
+    render();
+  }
+}
+
+async function resetToday() {
+  if (confirm('Reset today\'s water log?')) {
+    state = await api('/reset', { method: 'POST', body: JSON.stringify({ date: localDateStr() }) });
+    render();
+  }
+}
+
+function setNfcPreset(ml, el) {
+  nfcPresetMl = ml;
+  document.querySelectorAll('.nfc-preset').forEach(e => e.classList.remove('active'));
+  el.classList.add('active');
+  updateNfcUrl();
+}
+
+function updateNfcUrl() {
+  const url = `${location.origin}${location.pathname}?log=${nfcPresetMl}&src=NFC`;
+  document.getElementById('nfc-url-display').textContent = url;
+}
+
+function copyNfcUrl() {
+  const url = document.getElementById('nfc-url-display').textContent;
+  navigator.clipboard.writeText(url).then(() => showToast('URL copied! 📋'));
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+function render() {
+  const goal = state.goal || 2000;
+
+  // Date header
+  document.getElementById('header-date').textContent =
+    new Date().toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric' });
+
+  // Ring
+  const pct = Math.min(state.total / goal, 1);
+  const circumference = 2 * Math.PI * 75;
+  document.getElementById('ring-fg').style.strokeDashoffset = circumference * (1 - pct);
+  document.getElementById('ring-fg').style.stroke = pct >= 1 ? '#10b981' : '#0ea5e9';
+  document.getElementById('ring-ml').textContent = state.total.toLocaleString();
+  document.getElementById('goal-display').textContent = goal.toLocaleString();
+  document.getElementById('goal-input').value = goal;
+
+  // History
+  const list = document.getElementById('history-list');
+  if (state.entries.length === 0) {
+    list.innerHTML = '<div class="empty">No water logged yet today</div>';
+  } else {
+    list.innerHTML = state.entries.map((e, i) => `
+      <div class="history-item">
+        <div>
+          <div class="amount">+${e.ml} ml</div>
+          <div class="src">${e.source}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="time">${fmtTime(e.time)}</div>
+          <button class="del" onclick="deleteEntry(${i})" aria-label="Delete">×</button>
+        </div>
+      </div>`).join('');
+  }
+
+  updateNfcUrl();
+}
+
+// Handle NFC scan URL param: ?log=500&src=NFC
+function checkNfcAutoLog() {
+  const params = new URLSearchParams(location.search);
+  const ml = parseInt(params.get('log'), 10);
+  if (ml && ml > 0 && ml <= 5000) {
+    const src = params.get('src') || 'NFC';
+    setTimeout(() => addWater(ml, src), 300);
+    // Clean URL without reload
+    history.replaceState({}, '', location.pathname);
+  }
+}
+
+loadState().then(checkNfcAutoLog);
+</script>
+</body>
+</html>
